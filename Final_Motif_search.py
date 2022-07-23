@@ -3,15 +3,18 @@ import copy
 import math
 import re
 import os
-#from iupred3_lib import * # for iupred scoring
+from iupred3_lib import * # for iupred scoring
 import subprocess
 import pandas as pd
 from bs4 import BeautifulSoup
 
 
-# Visualisation
+########################################################################################################################
+# 						Visualisation
+########################################################################################################################
 
 # ----------------------------------------------------------------------------------------------------------------------
+
 # display matrix but not + signs before numbers -> looks matrix badly if there are any signs
 def nice_mtx_show(mtx):
     for i, j in mtx.items():
@@ -27,6 +30,30 @@ def nicer_mtx_show(mtx):
     return 1
 
 # ----------------------------------------------------------------------------------------------------------------------
+
+# Convert matrix into tsv to display in excel
+def mtx_to_tsv(mtx, file_path):
+    file = open(file_path, 'w')
+    cont_list = []
+    cont_string = ''
+    # loop through rows
+    for aa in mtx:
+        cont_string += aa + '\t'
+        # loop through columms
+        for cnt in mtx[aa]:
+            cont_string += str(cnt) + '\t'
+        cont_string += '\n'
+    # append string and write it into outputfile
+    cont_list.append(cont_string)
+    file.writelines(cont_list)
+    print('Convertation was successful!')
+    return 1
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+########################################################################################################################
+# 						FASTA file processing						
+########################################################################################################################
 
 # read FASTA file from computer and extract sequences and headers in 2 different lists in dictionary
 def multi_FASTA_seq_extractor(fasta_path):
@@ -159,126 +186,57 @@ def impr_multi_FASTA_seq_extractor(fasta_path):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Retrieves topology of given protein from Uniprot
-def RetrieveUniProtData(acc):
-    # assembly URL link
-    BASE = "http://www.uniprot.org"
-    KB_ENDPOINT = '/uniprot/'
-    # URL request parameters
-    payload = {'query': acc,
-               'format': 'tab',
-               # 'columns': 'id,entry_name,reviewed,protein_names,organism,ec,keywords'
-               'columns': 'id,entry_name,feature(TRANSMEMBRANE),feature(TOPOLOGICAL DOMAIN),comment(SUBCELLULAR LOCATION)'
-               # comment the following line to exclude isoforms
-               # 'include': 'yes',
-               }
-    # send request
-    result = requests.get(BASE + KB_ENDPOINT, params=payload)
-    # if got results then return with its content
-    if result.ok:
-        return result.content
-    # if no results then print 'Something went wrong: 'status code''
-    else:
-        print('Something went wrong: ', result.status_code)
-        exit()
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-# Retrieves PPI data of given protein from Intact database: https://www.ebi.ac.uk/intact/home into an outputdir | accesion_dicty ex.: {KLHL12 : ['Q53G59']}
-def retrieve_data_intact(accession_dicty, outputdir):
-    # go across a dictionary
-    for name, accs in accession_dicty.items():
-        #print(name, end="\t")
-        # go through protein accession ids
-        for acc in accs:
-            #set and assemble URL to retrieve the data of actual protein
-            url = "http://www.ebi.ac.uk/Tools/webservices/psicquic/intact/webservices/current/search/interactor/{0}?format=tab27".format(acc)
-            r = requests.get(url)
-            # write result into a file which place into given output directory
-            with open(outputdir + acc, 'w') as f:
-                f.write(r.content.decode('utf-8'))
+# Create FASTA file for selected proteins separately by using a multi-fasta file and a sequence library created by impr_multi_FASTA_seq_extractor (see later)
+# inputs: protein ids to store in fasta file, search file which contains the sequences of proteins (multifasta),file_path is the path of output directory,
+# sequence dictionary created by impr_multi_FASTA_seq_extractor
+def fasta_creator(id, search_file, file_path, seq_dict):
+    # open file in which there are the required proteins' headers
+    with open(search_file, 'r') as f:
+        # loop through lines of search_file
+        for line in f:
+            # if given line contains one of the wanted proteins' ids then save the header as a string (fasta_string)
+            if id in line:
+                fasta_string = '' + line
+                # search its sequence in sequence library
+                seq = seq_dict[id]['sequence']
+                # add corresponding sequence to the fasta_string
+                fasta_string += seq
+                #print(fasta_string)
+                # create output filename then its path
+                file_name = '/' + id + '.fasta'
+                file_path += file_name
+                # open output file and write the fasta_string into it
+                with open(file_path, 'w') as nf:
+                    nf.write(fasta_string)
+    print('FASTA file was successfully created.')
     return 1
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Generate a dictionary from retrieved intact PPI data
-# Open retreived intact PPI data containing file and create a dictionary: {interacting_protein_id : {detection_method : [MI_score, MI_score]}}
-# input: file path to PPI data containing file; protein which interaction partners are looked for
-def intact_ppi_dicty_create(input_file_path, searched_protein):
-    # Create output dictionary to save
-    dicty = {}
-    # open text file
-    with open(input_file_path, 'r') as f:
-        # loop through each line
-        for line in f.readlines():
-            # find those lines within got searched_protein and another protein are interacted
-            words_list = line.split('|')
-            #print(words_list)
-            # extract partner1 and 2 in current line
-            partner1 = words_list[0][words_list[0].find(':')+1:words_list[0].find('\t')]
-            partner2 = words_list[0][words_list[0].rfind('uniprotkb:')+10:words_list[0].rfind('\t')]
-            #print(partner1, partner2)
-            # if partner1 is not the same as the other partner
-            if partner1 != partner2:
-                # select partner which is not main interacting protein (not given searched protein)
-                partner = partner1 if partner1 != searched_protein else partner2
-                # extract method
-                method_id = [word_id for word_id, words in enumerate(words_list) if '"(' in words][0]
-                method = words_list[method_id][words_list[method_id].find('"(')+2:words_list[method_id].find(')', words_list[method_id].find('"('))]
-                # extract intact MI score
-                intact_miscore = [words[words.find('intact-miscore:')+15:words.find('\t', words.find('intact-miscore:'))] for words in words_list if 'intact-miscore:' in words][0]
-                #print(partner)
-                #print(method)
-                #print(intact_miscore)
-	# if partner not have key in dictionary then create one
-                if partner not in dicty.keys():
-                    dicty.update({partner : {}})
-	# if method is not among the values of given key in dictionary then add it
-                if method not in dicty[partner].keys():
-                    dicty[partner].update({method : []})
-	# add PPI score to dictionary
-                dicty[partner][method].append(intact_miscore)
-        #print(dicty)
-    return dicty
+# Concatenate coherent headers and sequences from multi-fasta file and return with a list
+def head_and_neck_merge(fasta_path):
+    new_fasta_cont_list = []
+    # open and read multifasta file
+    fasta_file = open(fasta_path, 'r')
+    fasta_cont_list = fasta_file.readlines()
+    # loop through line of fasta file
+    for id in range(len(fasta_cont_list)):
+        # if list index is odd then it's sequence and go to the next line
+        if id % 2 != 0:
+            continue
+        # if list index is even then it's header
+        else:
+            # join the current (header) and previous (sequence) lines and add to the list
+            merged_head_and_neck = str(fasta_cont_list[id]) + str(fasta_cont_list[id + 1])
+            new_fasta_cont_list.append(merged_head_and_neck)
+    fasta_file.close()
+    return new_fasta_cont_list
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Open PPI data from Biogrid which was only downloaded by hand from website (https://thebiogrid.org/) and create a dictionary based on that: {interacting_protein_id : {method : occurrence}}}
-# input: path to Biogrid PPI data containing file, protein which interaction partners are looked for
-def biogrid_ppi_dicty_generate(input_file_path, searched_protein):
-    dicty = {}
-    # open file
-    with open(input_file_path, 'r') as f:
-        # read file, but start from 2nd line. 1st one is the header
-        for line in f.readlines()[1:]:
-            #print(line)
-            # extract both taxon id to only run for human proteins
-            taxid1 = line[line.find('taxid:')+6:line.find('\t', line.find('taxid:'))]
-            taxid2 = line[line.rfind('taxid:')+6:line.find('\t', line.rfind('taxid:'))]
-            #print(taxid1, taxid2)
-            # if both proteins are human ones
-            if taxid1 == '9606' and taxid2 == '9606':
-                # extract partner1 and partner2
-                partner1 = line[line.find('uniprot/swiss-prot:')+19:line.find('|', line.find('uniprot/swiss-prot:'))]
-                partner2 = line[line.rfind('uniprot/swiss-prot:')+19:line.find('|', line.rfind('uniprot/swiss-prot:'))]
-                #print(partner1, partner2)
-                # if partners are not same
-                if partner1 != partner2:
-                    # extract not searched partner
-                    partner = partner1 if partner1 != searched_protein else partner2
-                    #print(partner)
-                    # extract method
-                    method = line[line.find('"(')+2:line.find(')', line.find('"('))]
-                    #print(method)
-                    # save everything into dicty
-                    if partner not in dicty.keys():
-                        dicty[partner] = {}
-                    if method not in dicty[partner].keys():
-                        dicty[partner][method] = 1
-                    elif method in dicty[partner].keys():
-                        dicty[partner][method] += 1
-        #print(dicty)
-    return dicty
+########################################################################################################################
+# 						Motif search with PSSM						
+########################################################################################################################
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -365,28 +323,6 @@ def mtx_log_converter(mtx):
 # calculate the score of passed kmer based on (PSSM) matrix
 def score(kmer, mtx):
     return sum([mtx[aa][pos] for pos, aa in enumerate(kmer)])
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-# calculate the score of passed kmer based on (PSSM) matrix, but with gaps; inputs: kmer, matrix, gap score
-def score_wth_gaps(kmer, mtx, gap):
-    score_list = []
-    print(kmer)
-    # go through actual kmer
-    for pos, aa in enumerate(kmer):
-        # if given residue is unknown or gap then give gap score
-        if aa == '-' or aa == 'X':
-            score_list.append(gap)
-        # else give the matrix score to it
-        else:
-            score_list.append(mtx[aa][pos])
-    return sum(score_list) # return with sum of values of score list
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-# estimate disorder content of given protein with the aid of IuPred software
-def iupred_score(seq):
-    return iupred(seq)
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -521,6 +457,97 @@ def multifasta_PSSM_motif_searcher(proteome_dict, motif_len, mtx, threshold = 0,
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+# Converts given dictionary from multifasta_PSSM_motif_searcher into such dictionary within likely to check quickly which proteins a specific motif presents in? {poss_motif : [protein_id1, protein_id2, protein_id3...]...}
+def ID_to_motif_mk_dict_converter(motif_dict):  # mk = main key
+    new_motif_dict = {}
+    for ID in motif_dict:  # loop over the protein IDs
+        #print(ID)
+        for motif in motif_dict[ID]['motifs']: # loop over the motifs that are present in current protein
+            if motif not in new_motif_dict:
+                new_motif_dict[motif] = []
+            new_motif_dict[motif].append(ID)
+    #print(motif_dict)
+    return new_motif_dict
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# extract and places score of motif candidates from dictionary created by  multifasta_PSSM_motif_searcher into a dictionary: {ID1 : [scores], ID2 : [scores]}
+# + places a keys ('All_scores') with scores of all motif candidates
+def dict_score_extractor(dict):
+    # create dictionary for score storing in later: {ID1 : [scores], ID2 : [scores]}
+    score_dict = {ID : [] for ID in dict}
+
+    # extract and put all scores in list corresponding to ID
+    for ID in dict: # loop over all proteins
+        for motif in dict[ID]['motifs']:  # loop over all motifs of actual protein
+            for app_numb in dict[ID]['motifs'][motif]:  # go through all occurrences of actual motif of actual protein
+                score = dict[ID]['motifs'][motif][app_numb]['score']
+                score_dict[ID].append(score)
+
+    # put sum of all values regardless of corresponding IDs and motifs as a value into a new key
+    All_scores = []
+    for ID in score_dict:
+        All_scores.extend(score_dict[ID])
+    score_dict['All_scores'] = All_scores
+
+    return score_dict
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# Score all kmers in multi fasta file by using PSSM and store only the scores
+# inputs: sequence library, motif length, matrix to score, threshold to distinguish good and bad motifs, 'All = True' means scores of all motifs regardless of their scores are stored
+def PSSM_motif_score_and_store(proteome_dict, motif_len, mtx, threshold = 0, All = True):
+    scores = []
+    # loop through all sequences in sequence library
+    for ID in proteome_dict:
+        current_seq = proteome_dict[ID]['sequence']
+        # loop through all possible kmers
+        for pos in range(len(current_seq) - motif_len + 1):
+            poss_motif = current_seq[pos : pos + motif_len]
+            # if given possible motif contains unknown or special character then skip it
+            if poss_motif.find('U') != -1 or poss_motif.find('X') != -1:
+                continue
+            # calculate score of possible motif based on matrix
+            poss_motif_score = score(poss_motif, mtx)
+            # if want keep scores of all motif candidates then save it
+            if All == True:
+                scores.append(poss_motif_score)
+            # if not want keep scores of all motif candidates then just motif candidates with greater score then certain threshold value are accepted and stored
+            else:
+                if poss_motif_score > threshold:
+                    scores.append(poss_motif_score)
+    return scores
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# calculate the score of passed kmer based on (PSSM) matrix, but with gaps; inputs: kmer, matrix, gap score
+def score_wth_gaps(kmer, mtx, gap):
+    score_list = []
+    print(kmer)
+    # go through actual kmer
+    for pos, aa in enumerate(kmer):
+        # if given residue is unknown or gap then give gap score
+        if aa == '-' or aa == 'X':
+            score_list.append(gap)
+        # else give the matrix score to it
+        else:
+            score_list.append(mtx[aa][pos])
+    return sum(score_list) # return with sum of values of score list
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# estimate disorder content of given protein with the aid of IuPred software
+def iupred_score(seq):
+    return iupred(seq)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------------
+
 # Search motifs by using regex in proteins and return with a nested dictionary: {id : {motif : {appearance_number : {'start' : position}}}
 # inputs: sequence library, regex motif, motif length, output directory
 def motif_regex_search(sequences_dicty, motif, motif_len, result_dir):
@@ -578,114 +605,18 @@ def motif_regex_search(sequences_dicty, motif, motif_len, result_dir):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Converts given dictionary from multifasta_PSSM_motif_searcher into such dictionary within likely to check quickly which proteins a specific motif presents in? {poss_motif : [protein_id1, protein_id2, protein_id3...]...}
-def ID_to_motif_mk_dict_converter(motif_dict):  # mk = main key
-    new_motif_dict = {}
-    for ID in motif_dict:  # loop over the protein IDs
-        #print(ID)
-        for motif in motif_dict[ID]['motifs']: # loop over the motifs that are present in current protein
-            if motif not in new_motif_dict:
-                new_motif_dict[motif] = []
-            new_motif_dict[motif].append(ID)
-    #print(motif_dict)
-    return new_motif_dict
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Score all kmers in multi fasta file by using PSSM and store only the scores
-# inputs: sequence library, motif length, matrix to score, threshold to distinguish good and bad motifs, 'All = True' means scores of all motifs regardless of their scores are stored
-def PSSM_motif_score_and_store(proteome_dict, motif_len, mtx, threshold = 0, All = True):
-    scores = []
-    # loop through all sequences in sequence library
-    for ID in proteome_dict:
-        current_seq = proteome_dict[ID]['sequence']
-        # loop through all possible kmers
-        for pos in range(len(current_seq) - motif_len + 1):
-            poss_motif = current_seq[pos : pos + motif_len]
-            # if given possible motif contains unknown or special character then skip it
-            if poss_motif.find('U') != -1 or poss_motif.find('X') != -1:
-                continue
-            # calculate score of possible motif based on matrix
-            poss_motif_score = score(poss_motif, mtx)
-            # if want keep scores of all motif candidates then save it
-            if All == True:
-                scores.append(poss_motif_score)
-            # if not want keep scores of all motif candidates then just motif candidates with greater score then certain threshold value are accepted and stored
-            else:
-                if poss_motif_score > threshold:
-                    scores.append(poss_motif_score)
-    return scores
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# extract and places score of motif candidates from dictionary created by  multifasta_PSSM_motif_searcher into a dictionary: {ID1 : [scores], ID2 : [scores]}
-# + places a keys ('All_scores') with scores of all motif candidates
-def dict_score_extractor(dict):
-    # create dictionary for score storing in later: {ID1 : [scores], ID2 : [scores]}
-    score_dict = {ID : [] for ID in dict}
 
-    # extract and put all scores in list corresponding to ID
-    for ID in dict: # loop over all proteins
-        for motif in dict[ID]['motifs']:  # loop over all motifs of actual protein
-            for app_numb in dict[ID]['motifs'][motif]:  # go through all occurrences of actual motif of actual protein
-                score = dict[ID]['motifs'][motif][app_numb]['score']
-                score_dict[ID].append(score)
-
-    # put sum of all values regardless of corresponding IDs and motifs as a value into a new key
-    All_scores = []
-    for ID in score_dict:
-        All_scores.extend(score_dict[ID])
-    score_dict['All_scores'] = All_scores
-
-    return score_dict
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Create FASTA file for selected proteins separately by using a multi-fasta file and a sequence library created by impr_multi_FASTA_seq_extractor
-# inputs: protein ids to store in fasta file, search file which contains the sequences of proteins (multifasta),file_path is the path of output directory,
-# sequence dictionary created by impr_multi_FASTA_seq_extractor
-def fasta_creator(id, search_file, file_path, seq_dict):
-    # open file in which there are the required proteins' headers
-    with open(search_file, 'r') as f:
-        # loop through lines of search_file
-        for line in f:
-            # if given line contains one of the wanted proteins' ids then save the header as a string (fasta_string)
-            if id in line:
-                fasta_string = '' + line
-                # search its sequence in sequence library
-                seq = seq_dict[id]['sequence']
-                # add corresponding sequence to the fasta_string
-                fasta_string += seq
-                #print(fasta_string)
-                # create output filename then its path
-                file_name = '/' + id + '.fasta'
-                file_path += file_name
-                # open output file and write the fasta_string into it
-                with open(file_path, 'w') as nf:
-                    nf.write(fasta_string)
-    print('FASTA file was successfully created.')
-    return 1
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-# Concatenate coherent headers and sequences from multi-fasta file and return with a list
-def head_and_neck_merge(fasta_path):
-    new_fasta_cont_list = []
-    # open and read multifasta file
-    fasta_file = open(fasta_path, 'r')
-    fasta_cont_list = fasta_file.readlines()
-    # loop through line of fasta file
-    for id in range(len(fasta_cont_list)):
-        # if list index is odd then it's sequence and go to the next line
-        if id % 2 != 0:
-            continue
-        # if list index is even then it's header
-        else:
-            # join the current (header) and previous (sequence) lines and add to the list
-            merged_head_and_neck = str(fasta_cont_list[id]) + str(fasta_cont_list[id + 1])
-            new_fasta_cont_list.append(merged_head_and_neck)
-    fasta_file.close()
-    return new_fasta_cont_list
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -1090,34 +1021,7 @@ def qfo_group_ox_dict(qfo_dict):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Converts dictionary generated by multifasta_PSSM_motif_searcher algorithm into tsv text
-# Inputs: dictionary created by multifasta_PSSM_motif_searcher algorithm, outputfile path
-def fbm_dict_to_tsv_convert(dicty, file_path):
-    # create and open outputfile for writing
-    new_file = open(file_path, 'w')
-    cont_string = ''
-    # Create header: 'Protein id\tmotif\tappearance number\tposition\tPSSM score\' as the first row
-    cont_list = ['Protein id\tmotif\tappearance number\tposition\tPSSM score\n']
-    # loop through proteins
-    for id in dicty:
-        #print(id)
-        #print(dicty[id])
-        # loop through motifs
-        for motif in dicty[id]['motifs']:
-            #print(motif)
-            # loop through occurrence of motifs
-            for app_numb in dicty[id]['motifs'][motif]:
-                # extract motif's score and position
-                motif_score = dicty[id]['motifs'][motif][app_numb]['score']
-                motif_position = dicty[id]['motifs'][motif][app_numb]['position']
-                # assemble and give row representing current motif's information
-                cont_string = str(id) + '\t' + str(motif) + '\t' + str(app_numb) + '\t' + str(motif_position) + '\t' + str(motif_score) + '\n'
-                cont_list.append(cont_string)
-    # write list into the output file
-    new_file.writelines(cont_list)
-    new_file.close()
-    print('Convertation was successful!')
-    return 1
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -1149,23 +1053,7 @@ def extgm_dict_to_tsv_convert(dicty, file_path):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Convert matrix into tsv to display in excel
-def mtx_to_tsv(mtx, file_path):
-    file = open(file_path, 'w')
-    cont_list = []
-    cont_string = ''
-    # loop through rows
-    for aa in mtx:
-        cont_string += aa + '\t'
-        # loop through columms
-        for cnt in mtx[aa]:
-            cont_string += str(cnt) + '\t'
-        cont_string += '\n'
-    # append string and write it into outputfile
-    cont_list.append(cont_string)
-    file.writelines(cont_list)
-    print('Convertation was successful!')
-    return 1
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -2523,7 +2411,7 @@ Protein-protein interaction (PPI) section
 # Open retreived intact PPI data containing file and create a dictionary: {interacting_protein_id : {detection_method : [MI_score, MI_score]}}
 # input: file path to PPI data containing file; protein which interaction partners are looked for
 # output dictionary: {protein_id : {method : [score, score...]...}...}
-def intact_ppi_dicty_create(input_file_path, searched_protein):
+def (input_file_path, searched_protein):
     # Create output dictionary to save
     dicty = {}
     # open text file
@@ -2599,6 +2487,23 @@ def biogrid_ppi_dicty_generate(input_file_path, searched_protein):
                         dicty[partner][method] += 1
         #print(dicty)
     return dicty
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# Retrieves PPI data of given protein from Intact database: https://www.ebi.ac.uk/intact/home into an outputdir | accesion_dicty ex.: {KLHL12 : ['Q53G59']}
+def retrieve_data_intact(accession_dicty, outputdir):
+    # go across a dictionary
+    for name, accs in accession_dicty.items():
+        #print(name, end="\t")
+        # go through protein accession ids
+        for acc in accs:
+            #set and assemble URL to retrieve the data of actual protein
+            url = "http://www.ebi.ac.uk/Tools/webservices/psicquic/intact/webservices/current/search/interactor/{0}?format=tab27".format(acc)
+            r = requests.get(url)
+            # write result into a file which place into given output directory
+            with open(outputdir + acc, 'w') as f:
+                f.write(r.content.decode('utf-8'))
+    return 1
 
 # ----------------------------------------------------------------------------------------------------------------------
 
