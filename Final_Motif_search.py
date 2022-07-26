@@ -1517,7 +1517,7 @@ def integrate_all(dicty, iupred_file_path=False, pfam_file_path=False, phobius_f
 # ----------------------------------------------------------------------------------------------------------------------
 
 ########################################################################################################################
-# 						Motif candidates evolutional analysis with Gopher
+# 				Motif candidates evolutional analysis with Gopher and SLiMPrints
 ########################################################################################################################
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2379,83 +2379,11 @@ def info_integr_output_generate(dicty, output_file_path):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+########################################################################################################################
+# 				Protein-protein interaction (PPI)
+########################################################################################################################
 
 # ----------------------------------------------------------------------------------------------------------------------
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-##########################################################################################################
-How to run filtering programs
-##########################################################################################################
-
-# Read given protein's motif_regex_search result file and create a dictionary: {start : [motif], start : [motif]}
-#protein_motif_dicty = motif_search_result_read_dict_create(motif_search_res_dir + protein_id + '.res')
-
-# Integrate of all Pfam, Iupred, Phobius data of motifs in given protein and create a dictionary: {start : [motif, iupred, pfam, phobius]}
-#motif_dicty = integrate_all(protein_motif_dicty, iupred_analysis_dir + protein_id + '.iupred', pfam_analysis_dir + protein_id + '_pfam_res.txt', phobius_analysis_dir + protein_id + '.phb_output')
-
-# Integrate gopher result in such way calculate Shannon value and regex values (see code above) and return with dictionary: {start : [motif, iupred, pfam, phobius, 'mammalia', shannon_val, regex_val, regex_fraction, 'vertebrata', shannon_val, regex_val, regex_fraction, 'Eumetazoa, shannon_val, regex_val, regex_fraction, 'Opisthokonta', shannon_val, regex_val, regex_fraction, 'Plants', shannon_val, regex_val, regex_fraction, 'Eukaryota', shannon_val, regex_val, regex_fraction]}
-#motif_dicty = gopher_slimprint_res_integrate(motif_dicty, slimprints_data + protein_id + '.slimprints', gopher_analysis_dir + 'Sorted_mafft_align/' + protein_id + '.orthaln.fas', eukaryota_taxonomy_list, gopher_analysis_dir + 'Gapped_sorted_mafftalign/' + protein_id + '.orthaln.fas', 0)
-
-# Use the filter to add 'ACCEPTED' or 'REJECTED' as a new line
-#motif_filter(motif_dicty, iupred_cutoff, pfam_limit_list)
-
-# Create a file for given protein within there is all integrated data: motif start, motif, iupred, pfam, phobius, evolutionary level, corresponding 'shannon value', corresponding regex matching percentage and fraction
-#info_integr_output_generate(motif_dicty, integrated_data_output_dir + protein_id + '.integr.txt')
-
-
-
-
-
-
-# Used this to get protein list of motif containing proteins for GNU parallel run this script in terminal
-#ls *.res | sed 's/.res//' > protein_id_list
-
-# Used to save terminal outputs in a file when I'm running this script in gnu parallel
-# script /home/zolo012/KELCH/Motif_search_v1/Protein_results/Integrated_data/Log_file
-
-
-##########################################################################################################
-Protein-protein interaction (PPI) section
-##########################################################################################################
 
 # Open retreived intact PPI data containing file and create a dictionary: {interacting_protein_id : {detection_method : [MI_score, MI_score]}}
 # input: file path to PPI data containing file; protein which interaction partners are looked for
@@ -2661,6 +2589,42 @@ def intact_biogrid_ppi_add(protein_dicty, sequence_lib_dicty, intact_data_dicty,
     return 1
 
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+##########################################################################################################
+How to run filtering programs
+##########################################################################################################
+
+# Read given protein's motif_regex_search result file and create a dictionary: {start : [motif], start : [motif]}
+#protein_motif_dicty = motif_search_result_read_dict_create(motif_search_res_dir + protein_id + '.res')
+
+# Integrate of all Pfam, Iupred, Phobius data of motifs in given protein and create a dictionary: {start : [motif, iupred, pfam, phobius]}
+#motif_dicty = integrate_all(protein_motif_dicty, iupred_analysis_dir + protein_id + '.iupred', pfam_analysis_dir + protein_id + '_pfam_res.txt', phobius_analysis_dir + protein_id + '.phb_output')
+
+# Integrate gopher result in such way calculate Shannon value and regex values (see code above) and return with dictionary: {start : [motif, iupred, pfam, phobius, 'mammalia', shannon_val, regex_val, regex_fraction, 'vertebrata', shannon_val, regex_val, regex_fraction, 'Eumetazoa, shannon_val, regex_val, regex_fraction, 'Opisthokonta', shannon_val, regex_val, regex_fraction, 'Plants', shannon_val, regex_val, regex_fraction, 'Eukaryota', shannon_val, regex_val, regex_fraction]}
+#motif_dicty = gopher_slimprint_res_integrate(motif_dicty, slimprints_data + protein_id + '.slimprints', gopher_analysis_dir + 'Sorted_mafft_align/' + protein_id + '.orthaln.fas', eukaryota_taxonomy_list, gopher_analysis_dir + 'Gapped_sorted_mafftalign/' + protein_id + '.orthaln.fas', 0)
+
+# Use the filter to add 'ACCEPTED' or 'REJECTED' as a new line
+#motif_filter(motif_dicty, iupred_cutoff, pfam_limit_list)
+
+# Create a file for given protein within there is all integrated data: motif start, motif, iupred, pfam, phobius, evolutionary level, corresponding 'shannon value', corresponding regex matching percentage and fraction
+#info_integr_output_generate(motif_dicty, integrated_data_output_dir + protein_id + '.integr.txt')
+
+
+
+
+
+
+# Used this to get protein list of motif containing proteins for GNU parallel run this script in terminal
+#ls *.res | sed 's/.res//' > protein_id_list
+
+# Used to save terminal outputs in a file when I'm running this script in gnu parallel
+# script /home/zolo012/KELCH/Motif_search_v1/Protein_results/Integrated_data/Log_file
+
+
+
+
+
 
 
 
