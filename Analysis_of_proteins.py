@@ -5,6 +5,12 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import os
 
+# Place variables
+human_proteom_place = '/home/zolo012/Human_proteom/human_proteom_no_isoforms_dictionary'
+human_proteom_raw_place = '/home/zolo012/Human_proteom/human_proteom_no_isoforms.fasta'
+
+
+
 # A, Run all analysis (Pfam, Iupred, Phobius, SignalP) for each human protein
 
 # 1. Open human proteom without isoforms file and create a variable to be able to use and save it too
