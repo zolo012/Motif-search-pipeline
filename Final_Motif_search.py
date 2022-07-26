@@ -186,7 +186,7 @@ def impr_multi_FASTA_seq_extractor(fasta_path):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Create FASTA file for selected proteins separately by using a multi-fasta file and a sequence library created by impr_multi_FASTA_seq_extractor (see later)
+# Create FASTA file for selected proteins separately by using a multi-fasta file and a sequence library created by impr_multi_FASTA_seq_extractor
 # inputs: protein ids to store in fasta file, search file which contains the sequences of proteins (multifasta),file_path is the path of output directory,
 # sequence dictionary created by impr_multi_FASTA_seq_extractor
 def fasta_creator(id, search_file, file_path, seq_dict):
